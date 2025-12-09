@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Text Tools — Reverse & Crypto</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; padding: 18px; }
+    textarea { width: 100%; min-height: 90px; margin: 8px 0; }
+    button { margin-right: 8px; }
+    #output, #cryptoOutput {
+      cursor: pointer;
+      border: 1px solid #222;
+      padding: 10px;
+      min-height: 50px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      box-sizing: border-box;
+      max-width: 100%;
+    }
+    .player { margin-top: 12px; }
+    #toast { position: fixed; right: 16px; bottom: 16px; padding: 8px 12px; border-radius: 6px; background: rgba(0,0,0,0.8); color: #fff; display: none; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div>
+    <div>
+      <button id="tabReverse" onclick="switchTab('reverseTab', this)" style="font-weight: bold;">Reverse</button>
+      <button id="tabCrypto" onclick="switchTab('cryptoTab', this)">Crypto</button>
+    </div>
+
+    <div id="reverseTab">
+      <h2>Reverse Text</h2>
+      <textarea id="inputText" placeholder="Type or paste text to reverse..."></textarea>
+      <div>
+        <button onclick="reverseText()">Reverse</button>
+        <button onclick="clearInput()">Clear</button>
+      </div>
+      <div>
+        <strong>Output (tap to copy)</strong>
+      </div>
+      <div id="output" onclick="copyOutputBox('output')" aria-live="polite"></div>
+      <div class="player">
+        <div>
+          <strong>Recent</strong>
+          <button title="Clear recent" onclick="clearRecent()">Clear</button>
+        </div>
+        <div id="recentList"></div>
+      </div>
+    </div>
+
+    <div id="cryptoTab" style="display:none;">
+      <h2>Cryptography</h2>
+      <textarea id="cryptoInput" placeholder="Enter text to encode or decode..."></textarea>
+      <div>
+        <button onclick="encodeText()">Encode</button>
+        <button onclick="decodeText()">Decode</button>
+      </div>
+      <div>
+        <strong>Result (tap to copy)</strong>
+      </div>
+      <div id="cryptoOutput" onclick="copyOutputBox('cryptoOutput')" aria-live="polite"></div>
+      <div style="margin-top:12px; font-size:13px; color:#444;">Tip: Encode to obfuscate; Decode to restore.</div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script>
+    function switchTab(tabId, tabElement) {
+      document.getElementById('reverseTab').style.display = 'none';
+      document.getElementById('cryptoTab').style.display = 'none';
+      document.getElementById(tabId).style.display = 'block';
+      document.getElementById('tabReverse').style.fontWeight = 'normal';
+      document.getElementById('tabCrypto').style.fontWeight = 'normal';
+      tabElement.style.fontWeight = 'bold';
+    }
+
+    function $(id) { return document.getElementById(id); }
+
+    function showToast(msg, duration = 1500) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      clearTimeout(t._hide);
+      t._hide = setTimeout(() => { t.style.display = 'none'; }, duration);
+    }
+
+    async function copyOutputBox(id) {
+      const el = $(id);
+      try {
+        const text = el.textContent || '';
+        if (!text) { showToast('Nothing to copy'); return; }
+        await navigator.clipboard.writeText(text);
+        showToast('Copied');
+      } catch (err) {
+        console.error('Copy failed', err);
+        showToast('Copy failed');
+      }
+    }
+
+    function reverseText() {
+      const input = $('inputText').value || '';
+      const reversed = input.split('').reverse().join('');
+      $('output').textContent = reversed;
+      saveToRecent(input);
+      loadRecent();
+    }
+
+    function clearInput() {
+      $('inputText').value = '';
+      $('output').textContent = '';
+    }
+
+    function saveToRecent(text) {
+      if (!text || !text.trim()) return;
+      const key = 'recentWords_v1';
+      let recent = JSON.parse(localStorage.getItem(key) || '[]');
+      recent = recent.filter(r => r !== text);
+      recent.unshift(text);
+      recent = recent.slice(0, 12);
+      localStorage.setItem(key, JSON.stringify(recent));
+    }
+
+    function loadRecent() {
+      const key = 'recentWords_v1';
+      const recent = JSON.parse(localStorage.getItem(key) || '[]');
+      const list = $('recentList');
+      list.innerHTML = '';
+      if (!recent.length) {
+        const empty = document.createElement('div');
+        empty.style.color = '#666';
+        empty.style.fontSize = '13px';
+        empty.textContent = 'No recent items yet';
+        list.appendChild(empty);
+        return;
+      }
+      recent.forEach(item => {
+        const div = document.createElement('div');
+        div.textContent = item;
+        div.title = 'Click to paste into input';
+        div.style.border = '1px solid #ccc';
+        div.style.padding = '6px';
+        div.style.marginBottom = '6px';
+        div.style.cursor = 'pointer';
+        div.onclick = () => { $('inputText').value = item; };
+        const copyBtn = document.createElement('button');
+        copyBtn.style.float = 'right';
+        copyBtn.style.marginLeft = '8px';
+        copyBtn.textContent = 'Copy';
+        copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(item).then(() => showToast('Copied')).catch(() => showToast('Copy failed'));
+        };
+        div.appendChild(copyBtn);
+        list.appendChild(div);
+      });
+    }
+
+    function clearRecent() { localStorage.removeItem('recentWords_v1'); loadRecent(); }
+
+    const _KEY = 'GALACTIC-42-OPENAI';
+
+    function _mapPrintable(str, fn) {
+      const MIN = 32, RANGE = 95;
+      return Array.from(str).map((ch, i) => {
+        const code = ch.charCodeAt(0);
+        if (code < MIN || code >= MIN + RANGE) return ch;
+        const val = code - MIN;
+        return String.fromCharCode(MIN + fn(val, i));
+      }).join('');
+    }
+
+    function encodeText() {
+      const input = $('cryptoInput').value || '';
+      const keyed = _mapPrintable(input, (val, i) => {
+        const k = _KEY.charCodeAt(i % _KEY.length);
+        const shift = (k + i * 13) % 95;
+        return (val + shift) % 95;
+      });
+      const reversed = Array.from(keyed).reverse().join('');
+      try {
+        const b64 = btoa(reversed);
+        $('cryptoOutput').textContent = b64;
+      } catch (e) {
+        $('cryptoOutput').textContent = reversed;
+      }
+    }
+
+    function decodeText() {
+      const input = $('cryptoInput').value || '';
+      let decodedStr = input;
+      try { decodedStr = atob(input); } catch (e) { decodedStr = input; }
+      const unreversed = Array.from(decodedStr).reverse().join('');
+      const original = _mapPrintable(unreversed, (val, i) => {
+        const k = _KEY.charCodeAt(i % _KEY.length);
+        const shift = (k + i * 13) % 95;
+        return (val - shift + 95) % 95;
+      });
+      $('cryptoOutput').textContent = original;
+    }
+
+    loadRecent();
+
+    document.addEventListener('keydown', (ev) => {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'r') {
+        ev.preventDefault();
+        if (document.getElementById('reverseTab').style.display !== 'none') reverseText();
+      }
+    });
+  </script>
+</body>
+</html>
